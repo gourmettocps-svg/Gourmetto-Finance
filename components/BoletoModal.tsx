@@ -1,0 +1,151 @@
+
+import React, { useState, useEffect } from 'react';
+import { Boleto } from '../types';
+
+interface BoletoModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (boleto: Omit<Boleto, 'id'>) => void;
+  categories: string[];
+  onOpenCategoryModal: () => void;
+  initialData?: Boleto | null;
+}
+
+const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, categories, onOpenCategoryModal, initialData }) => {
+  const [formData, setFormData] = useState({
+    titulo: '',
+    categoria: '',
+    valor: '',
+    data_vencimento: '',
+    data_pagamento: '',
+    observacoes: ''
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        titulo: initialData.titulo,
+        categoria: initialData.categoria,
+        valor: initialData.valor.toString(),
+        data_vencimento: initialData.data_vencimento,
+        data_pagamento: initialData.data_pagamento || '',
+        observacoes: initialData.observacoes
+      });
+    } else {
+      setFormData({
+        titulo: '',
+        categoria: categories[0] || '',
+        valor: '',
+        data_vencimento: '',
+        data_pagamento: '',
+        observacoes: ''
+      });
+    }
+  }, [initialData, isOpen, categories]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      titulo: formData.titulo,
+      categoria: formData.categoria || categories[0],
+      valor: parseFloat(formData.valor),
+      data_vencimento: formData.data_vencimento,
+      data_pagamento: formData.data_pagamento || undefined,
+      status: formData.data_pagamento ? 'PAGO' : 'PENDENTE',
+      observacoes: formData.observacoes
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white w-full max-w-lg rounded-sm shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-tight">
+            {initialData ? 'Editar Lançamento' : 'Novo Lançamento'}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-rose-500 text-2xl transition-colors">&times;</button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
+            <input 
+              required
+              autoFocus
+              type="text"
+              className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 font-medium transition-all"
+              value={formData.titulo}
+              onChange={e => setFormData({...formData, titulo: e.target.value})}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Categoria</label>
+              <select 
+                className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 font-medium transition-all"
+                value={formData.categoria}
+                onChange={e => setFormData({...formData, categoria: e.target.value})}
+              >
+                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Valor (R$)</label>
+              <input 
+                required
+                type="number"
+                step="0.01"
+                className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-900 font-black transition-all"
+                value={formData.valor}
+                onChange={e => setFormData({...formData, valor: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Vencimento</label>
+              <input 
+                required
+                type="date"
+                className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 font-bold"
+                value={formData.data_vencimento}
+                onChange={e => setFormData({...formData, data_vencimento: e.target.value})}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data Pagamento</label>
+              <input 
+                type="date"
+                className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-emerald-400 outline-none text-emerald-700 font-bold"
+                value={formData.data_pagamento}
+                onChange={e => setFormData({...formData, data_pagamento: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Observações</label>
+            <textarea 
+              rows={2}
+              className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 text-sm font-medium"
+              value={formData.observacoes}
+              onChange={e => setFormData({...formData, observacoes: e.target.value})}
+            />
+          </div>
+
+          <div className="pt-4 flex gap-2">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-3 rounded-sm border border-slate-300 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">CANCELAR</button>
+            <button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-sm font-bold text-[10px] uppercase tracking-widest shadow-md active:scale-[0.98] transition-all">SALVAR REGISTRO</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default BoletoModal;
