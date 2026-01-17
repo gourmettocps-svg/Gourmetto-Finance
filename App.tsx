@@ -17,7 +17,6 @@ const App: React.FC = () => {
   const [dbStatus, setDbStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [subcategories, setSubcategories] = useState<Record<string, string[]>>({});
-  // Fix: Added missing state variable for boletos and its setter.
   const [boletos, setBoletos] = useState<Boleto[]>([]);
 
   // Filtros
@@ -57,50 +56,64 @@ const App: React.FC = () => {
   const fetchUserData = async (userId: string) => {
     setDbStatus('checking');
     try {
+      // 1. Fetch Boletos (Essencial)
       const { data: boletosData, error: bError } = await supabase
         .from('boletos')
         .select('*')
         .eq('user_id', userId)
         .order('data_vencimento', { ascending: true });
       
-      if (bError) throw bError;
+      if (bError) {
+        if (bError.code === 'PGRST116' || bError.message.includes('not found')) {
+            console.warn("Tabela 'boletos' não encontrada. Verifique o SQL Editor.");
+        } else throw bError;
+      }
       if (boletosData) setBoletos(boletosData as any);
 
-      // Categorias
-      const { data: catData, error: cError } = await supabase
-        .from('categories')
-        .select('name')
-        .eq('user_id', userId);
-      
-      if (cError) throw cError;
-      if (catData) {
-        const customNames = catData.map(c => c.name);
-        setCategories([...DEFAULT_CATEGORIES, ...customNames]);
-      }
+      // 2. Fetch Categories (Independente)
+      try {
+        const { data: catData, error: cError } = await supabase
+          .from('categories')
+          .select('name')
+          .eq('user_id', userId);
+        
+        if (cError) console.warn("Erro ao buscar categorias:", cError.message);
+        else if (catData) {
+          const customNames = catData.map(c => c.name);
+          setCategories([...DEFAULT_CATEGORIES, ...customNames]);
+        }
+      } catch (e) { console.error("Falha silenciosa em categorias"); }
 
-      // Subcategorias
-      const { data: subCatData, error: scError } = await supabase
-        .from('subcategories')
-        .select('name, category_name')
-        .eq('user_id', userId);
+      // 3. Fetch Subcategories (Independente - Aqui é onde o erro do usuário ocorria)
+      try {
+        const { data: subCatData, error: scError } = await supabase
+          .from('subcategories')
+          .select('name, category_name')
+          .eq('user_id', userId);
 
-      if (scError) throw scError;
-      if (subCatData) {
-        const map: Record<string, string[]> = {};
-        subCatData.forEach(sc => {
-          if (!map[sc.category_name]) map[sc.category_name] = [];
-          map[sc.category_name].push(sc.name);
-        });
-        setSubcategories(map);
-      }
+        if (scError) {
+            console.warn("Aviso: Tabela 'subcategories' ausente no cache. Execute o SQL no Supabase.");
+            if (scError.message.includes('subcategories')) {
+               setMessage("Aviso: Tabela 'subcategories' não detectada. Execute o SQL no painel do Supabase.");
+            }
+        } else if (subCatData) {
+          const map: Record<string, string[]> = {};
+          subCatData.forEach(sc => {
+            if (!map[sc.category_name]) map[sc.category_name] = [];
+            map[sc.category_name].push(sc.name);
+          });
+          setSubcategories(map);
+        }
+      } catch (e) { console.error("Falha silenciosa em subcategorias"); }
       
       setDbStatus('online');
     } catch (err: any) {
-      console.error("Erro de comunicação com Supabase:", err.message);
+      console.error("Erro crítico de comunicação:", err.message);
       setDbStatus('offline');
-      setMessage(`Erro de conexão: ${err.message}`);
+      setMessage(`Erro: ${err.message}`);
     } finally {
       setLoading(false);
+      setTimeout(() => setMessage(null), 5000);
     }
   };
 
@@ -159,41 +172,41 @@ const App: React.FC = () => {
   };
 
   const handleSaveBoleto = async (data: Omit<Boleto, 'id'>) => {
-    if (boletoToEdit) {
-      const { error } = await supabase
-        .from('boletos')
-        .update({
-          titulo: data.titulo,
-          categoria: data.categoria,
-          subcategoria: data.subcategoria,
-          valor: data.valor,
-          data_vencimento: data.data_vencimento,
-          data_pagamento: data.data_pagamento,
-          status: data.status,
-          observacoes: data.observacoes
-        })
-        .eq('id', boletoToEdit.id);
+    try {
+        if (boletoToEdit) {
+        const { error } = await supabase
+            .from('boletos')
+            .update({
+            titulo: data.titulo,
+            categoria: data.categoria,
+            subcategoria: data.subcategoria,
+            valor: data.valor,
+            data_vencimento: data.data_vencimento,
+            data_pagamento: data.data_pagamento,
+            status: data.status,
+            observacoes: data.observacoes
+            })
+            .eq('id', boletoToEdit.id);
 
-      if (error) {
-        setMessage(`Erro ao atualizar: ${error.message}`);
-      } else {
+        if (error) throw error;
         setBoletos(prev => prev.map(b => b.id === boletoToEdit.id ? { ...data, id: b.id } as any : b));
         setMessage(`Registro atualizado.`);
-      }
-    } else {
-      const newRecord = { ...data, user_id: session.user.id };
-      const { data: savedData, error } = await supabase
-        .from('boletos')
-        .insert([newRecord])
-        .select()
-        .single();
+        } else {
+        const newRecord = { ...data, user_id: session.user.id };
+        const { data: savedData, error } = await supabase
+            .from('boletos')
+            .insert([newRecord])
+            .select()
+            .single();
 
-      if (error) {
-        setMessage(`Erro ao salvar: ${error.message}`);
-      } else if (savedData) {
-        setBoletos(prev => [...prev, savedData as any]);
-        setMessage(`Lançamento registrado.`);
-      }
+        if (error) throw error;
+        if (savedData) {
+            setBoletos(prev => [...prev, savedData as any]);
+            setMessage(`Lançamento registrado.`);
+        }
+        }
+    } catch (err: any) {
+        setMessage(`Erro ao salvar: ${err.message}. Verifique se a tabela 'boletos' existe.`);
     }
     setBoletoToEdit(null);
     setTimeout(() => setMessage(null), 3000);
@@ -206,7 +219,7 @@ const App: React.FC = () => {
       .insert([{ user_id: session.user.id, name }]);
 
     if (error) {
-      setMessage(`Erro ao criar categoria: ${error.message}`);
+      setMessage(`Erro: ${error.message}. Tabela 'categories' existe?`);
     } else {
       setCategories(prev => [...prev, name]);
       setMessage(`Categoria "${name}" adicionada.`);
@@ -224,13 +237,13 @@ const App: React.FC = () => {
       .insert([{ user_id: session.user.id, name, category_name: activeCategoryForSub }]);
 
     if (error) {
-      setMessage(`Erro ao criar subcategoria: ${error.message}`);
+      setMessage(`Erro: ${error.message}. Tabela 'subcategories' existe?`);
     } else {
       setSubcategories(prev => ({
         ...prev,
         [activeCategoryForSub]: [...(prev[activeCategoryForSub] || []), name]
       }));
-      setMessage(`Subcategoria "${name}" vinculada a ${activeCategoryForSub}.`);
+      setMessage(`Subcategoria "${name}" vinculada.`);
     }
     setTimeout(() => setMessage(null), 3000);
   };
@@ -262,7 +275,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Autenticando Gourmetto...</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sincronizando Gourmetto Finance...</p>
         </div>
       </div>
     );
@@ -294,7 +307,7 @@ const App: React.FC = () => {
         isOpen={isSubCategoryModalOpen}
         onClose={() => setIsSubCategoryModalOpen(false)}
         onSave={addSubCategory}
-        title={`Nova Subcategoria para ${activeCategoryForSub}`}
+        title={`Subcategoria p/ ${activeCategoryForSub}`}
       />
 
       <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-[60] shadow-sm">
@@ -304,7 +317,7 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-none uppercase">GOURMETTO <span className="text-blue-600">FINANCE</span></h1>
               <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mt-1 flex items-center gap-2">
-                Gestão Financeira 
+                Cloud v1.0.8
                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-500' : dbStatus === 'offline' ? 'bg-rose-500' : 'bg-amber-500 animate-pulse'}`}></span>
               </p>
             </div>
@@ -333,8 +346,8 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto p-4 md:p-8">
         {message && (
-          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-white px-6 py-3 rounded-sm shadow-xl animate-fade-in-up flex items-center gap-3 border border-slate-700">
-            <span className="text-blue-400 font-bold">ℹ</span>
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-white px-6 py-3 rounded-sm shadow-xl animate-fade-in-up flex items-center gap-3 border border-slate-700 max-w-md text-center">
+            <span className="text-blue-400 font-bold shrink-0">ℹ</span>
             <p className="text-[10px] font-bold uppercase tracking-widest">{message}</p>
           </div>
         )}
@@ -379,7 +392,7 @@ const App: React.FC = () => {
            
            <div className="flex items-center gap-3">
               <span className={`text-[9px] font-bold uppercase tracking-widest ${dbStatus === 'online' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                {dbStatus === 'online' ? '● Banco Conectado' : '○ Sincronizando...'}
+                {dbStatus === 'online' ? '● Conectado' : '○ Sincronizando...'}
               </span>
               <button 
                 onClick={() => fetchUserData(session.user.id)}
@@ -400,12 +413,11 @@ const App: React.FC = () => {
             <div className="bg-white rounded-sm shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
               <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-5">
                 <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Painel de Lançamentos Cloud</h2>
-                  
+                  <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Controle de Fluxo Operacional</h2>
                   <div className="relative w-full md:w-80">
                     <input 
                       type="text"
-                      placeholder="Busca em tempo real..."
+                      placeholder="Pesquisa inteligente..."
                       className="bg-white border border-slate-200 rounded-sm py-2 pl-8 pr-4 text-[11px] outline-none focus:border-blue-400 transition-all w-full"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -416,44 +428,27 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-end gap-4 p-4 bg-white border border-slate-100 rounded-sm">
+                <div className="flex flex-wrap items-end gap-4 p-4 bg-white border border-slate-100 rounded-sm shadow-inner">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">De (Vencimento)</label>
-                    <input 
-                      type="date"
-                      className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 outline-none focus:border-blue-300"
-                      value={dateStart}
-                      onChange={(e) => setDateStart(e.target.value)}
-                    />
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Início (Venc.)</label>
+                    <input type="date" className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 outline-none focus:border-blue-300" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Até (Vencimento)</label>
-                    <input 
-                      type="date"
-                      className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 outline-none focus:border-blue-300"
-                      value={dateEnd}
-                      onChange={(e) => setDateEnd(e.target.value)}
-                    />
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Fim (Venc.)</label>
+                    <input type="date" className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 outline-none focus:border-blue-300" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Status do Fluxo</label>
-                    <div className="flex border border-slate-200 rounded-sm overflow-hidden h-[30px]">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Status</label>
+                    <div className="flex border border-slate-200 rounded-sm overflow-hidden h-[32px]">
                       {(['TODOS', 'PENDENTE', 'PAGO'] as const).map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => setStatusFilter(s)}
-                          className={`px-3 text-[9px] font-bold uppercase tracking-tighter transition-all ${statusFilter === s ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                        >
+                        <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 text-[9px] font-bold uppercase tracking-tighter transition-all ${statusFilter === s ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                           {s}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <button 
-                    onClick={resetFilters}
-                    className="h-[30px] px-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest hover:text-rose-600 transition-colors border border-dashed border-slate-200 rounded-sm"
-                  >
-                    Limpar Filtros
+                  <button onClick={resetFilters} className="h-[32px] px-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest hover:text-rose-600 transition-colors border border-dashed border-slate-200 rounded-sm">
+                    Limpar
                   </button>
                 </div>
               </div>
@@ -470,11 +465,7 @@ const App: React.FC = () => {
                 ))}
                 {filteredBoletos.length === 0 && (
                   <div className="py-24 text-center">
-                    <div className="text-slate-200 mb-4 flex justify-center">
-                      <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <h3 className="text-slate-400 font-bold text-sm uppercase tracking-tight">Nenhum registro encontrado</h3>
-                    <p className="text-slate-300 text-[10px] mt-2 uppercase tracking-[0.2em]">Tente ajustar os filtros ou a busca.</p>
+                    <h3 className="text-slate-300 font-bold text-xs uppercase tracking-widest">Nenhum registro no fluxo</h3>
                   </div>
                 )}
               </div>
@@ -486,15 +477,8 @@ const App: React.FC = () => {
       </main>
 
       <footer className="text-center py-12 border-t border-slate-200 mt-10">
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.6em]">GOURMETTO FINANCE • Versão Cloud 1.0.6</p>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.6em]">GOURMETTO FINANCE • CLOUD INFRASTRUCTURE</p>
       </footer>
-
-      <style>{`
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes fade-in-up { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
-        .animate-fade-in { animation: fade-in 0.2s ease-out; }
-        .animate-fade-in-up { animation: fade-in-up 0.3s ease-out; }
-      `}</style>
     </div>
   );
 };

@@ -89,11 +89,12 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descrição do Lançamento</label>
             <input 
               required
               autoFocus
               type="text"
+              placeholder="Ex: Aluguel Mensal"
               className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 font-medium transition-all"
               value={formData.titulo}
               onChange={e => setFormData({...formData, titulo: e.target.value})}
@@ -107,9 +108,9 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
                 <button 
                   type="button"
                   onClick={onOpenCategoryModal}
-                  className="text-[8px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-1.5 py-0.5 rounded-sm"
+                  className="text-[8px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-1.5 py-0.5 rounded-sm transition-colors"
                 >
-                  + Categ
+                  + Nova
                 </button>
               </div>
               <select 
@@ -126,9 +127,9 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
                 <button 
                   type="button"
                   onClick={() => onOpenSubCategoryModal(formData.categoria)}
-                  className="text-[8px] font-bold text-emerald-600 hover:text-emerald-800 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded-sm"
+                  className="text-[8px] font-bold text-emerald-600 hover:text-emerald-800 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded-sm transition-colors"
                 >
-                  + Sub
+                  + Adicionar
                 </button>
               </div>
               <select 
@@ -136,7 +137,7 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
                 value={formData.subcategoria}
                 onChange={e => setFormData({...formData, subcategoria: e.target.value})}
               >
-                <option value="">Nenhuma</option>
+                <option value="">(Nenhuma selecionada)</option>
                 {currentSubcats.map(sc => <option key={sc} value={sc}>{sc}</option>)}
               </select>
             </div>
@@ -144,7 +145,7 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Valor (R$)</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Montante (R$)</label>
               <input 
                 required
                 type="number"
@@ -166,20 +167,18 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-             <div className="space-y-1 col-span-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data Pagamento (Deixe vazio se pendente)</label>
-              <input 
-                type="date"
-                className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-emerald-400 outline-none text-emerald-700 font-bold"
-                value={formData.data_pagamento}
-                onChange={e => setFormData({...formData, data_pagamento: e.target.value})}
-              />
-            </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data do Pagamento</label>
+            <input 
+              type="date"
+              className="w-full px-4 py-2 rounded-sm bg-slate-50 border border-slate-200 focus:border-emerald-400 outline-none text-emerald-700 font-bold"
+              value={formData.data_pagamento}
+              onChange={e => setFormData({...formData, data_pagamento: e.target.value})}
+            />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Observações</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Notas Adicionais</label>
             <textarea 
               rows={2}
               className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 text-sm font-medium"
@@ -189,8 +188,8 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
           </div>
 
           <div className="pt-4 flex gap-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-3 rounded-sm border border-slate-300 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">CANCELAR</button>
-            <button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-sm font-bold text-[10px] uppercase tracking-widest shadow-md active:scale-[0.98] transition-all">SALVAR REGISTRO</button>
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-3 rounded-sm border border-slate-300 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancelar</button>
+            <button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-sm font-bold text-[10px] uppercase tracking-widest shadow-md active:scale-[0.98] transition-all">Efetivar Lançamento</button>
           </div>
         </form>
       </div>
