@@ -15,7 +15,7 @@ const BoletoCard: React.FC<BoletoCardProps> = ({ boleto, onMarkPaid, onDelete, o
 
   const handleDelete = (e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation();
+    e.stopPropagation(); // Essencial para evitar que cliques no botão "passem" para o card
     onDelete();
   };
 
@@ -59,17 +59,11 @@ const BoletoCard: React.FC<BoletoCardProps> = ({ boleto, onMarkPaid, onDelete, o
         </p>
       </div>
 
-      <div className={`flex-shrink-0 md:px-6 mb-4 md:mb-0 flex items-center justify-center transition-all duration-300 ${isPaid ? 'text-emerald-600' : 'text-rose-600'}`}>
-        <div className={`p-2 rounded-full ${isPaid ? 'bg-emerald-50' : 'bg-rose-50'}`}>
-          {isPaid ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.737 3h4.017c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2" />
-            </svg>
-          )}
+      <div className="flex-shrink-0 md:px-6 mb-4 md:mb-0 flex items-center justify-center transition-all duration-300">
+        <div className={`p-2 rounded-full ${isPaid ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={isPaid ? "M5 13l4 4L19 7" : "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"} />
+          </svg>
         </div>
       </div>
 
@@ -104,13 +98,14 @@ const BoletoCard: React.FC<BoletoCardProps> = ({ boleto, onMarkPaid, onDelete, o
           <button 
             type="button"
             onClick={handleDelete} 
-            className="flex items-center gap-1 text-slate-400 hover:text-rose-600 px-3 py-2 transition-all hover:bg-rose-50 rounded-sm active:scale-90"
+            className="flex items-center gap-1.5 text-slate-400 hover:text-rose-600 px-3 py-2 transition-all hover:bg-rose-50 rounded-sm active:scale-90"
             title="Excluir Lançamento"
+            aria-label="Excluir"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            <span className="text-[8px] font-bold uppercase tracking-widest hidden group-hover:inline">EXCLUIR</span>
+            <span className="text-[8px] font-black uppercase tracking-widest hidden md:inline">EXCLUIR</span>
           </button>
         </div>
       </div>

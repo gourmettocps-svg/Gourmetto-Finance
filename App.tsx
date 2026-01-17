@@ -55,18 +55,10 @@ const App: React.FC = () => {
 
   const fetchUserData = async (userId: string, isManualTest = false) => {
     setDbStatus('checking');
-    if (isManualTest) setMessage("Sincronizando infraestrutura...");
-    
     try {
-      // Teste de Schema
-      const { data: colCheck, error: colError } = await supabase
-        .from('boletos')
-        .select('subcategoria')
-        .limit(1);
-      
+      const { data: colCheck, error: colError } = await supabase.from('boletos').select('subcategoria').limit(1);
       setHasSubcategoryCol(!colError);
 
-      // Busca de Boletos
       const { data: boletosData, error: bError } = await supabase
         .from('boletos')
         .select('*')
@@ -76,23 +68,13 @@ const App: React.FC = () => {
       if (bError) throw bError;
       setBoletos(boletosData || []);
 
-      // Busca de Categorias
-      const { data: catData } = await supabase
-        .from('categories')
-        .select('name')
-        .eq('user_id', userId);
-      
+      const { data: catData } = await supabase.from('categories').select('name').eq('user_id', userId);
       if (catData) {
         const customNames = catData.map(c => c.name);
         setCategories([...DEFAULT_CATEGORIES, ...customNames]);
       }
 
-      // Busca de Subcategorias
-      const { data: subCatData } = await supabase
-        .from('subcategories')
-        .select('name, category_name')
-        .eq('user_id', userId);
-
+      const { data: subCatData } = await supabase.from('subcategories').select('name, category_name').eq('user_id', userId);
       if (subCatData) {
         const map: Record<string, string[]> = {};
         subCatData.forEach(sc => {
@@ -101,43 +83,36 @@ const App: React.FC = () => {
         });
         setSubcategories(map);
       }
-
       setDbStatus('online');
     } catch (err: any) {
-      console.error("Erro diagnóstico:", err.message);
       setDbStatus('error');
-      setMessage(`Falha na Conexão: ${err.message}`);
+      setMessage(`Erro: ${err.message}`);
     } finally {
       setLoading(false);
-      setTimeout(() => setMessage(null), 5000);
     }
   };
 
   const deleteBoleto = async (id: string) => {
-    if (!id) {
-      console.error("Tentativa de exclusão sem ID");
-      return;
-    }
+    if (!id || !session?.user?.id) return;
     
-    if (window.confirm('Excluir este lançamento permanentemente?')) {
+    if (window.confirm('Deseja excluir este lançamento permanentemente?')) {
       try {
-        console.log("Iniciando exclusão do ID:", id);
+        console.log("Executando exclusão do boleto:", id);
+        
         const { error } = await supabase
           .from('boletos')
           .delete()
-          .eq('id', id);
+          .match({ id: id, user_id: session.user.id });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
-        // Atualização imediata do estado local
+        // Atualização reativa do estado
         setBoletos(prev => prev.filter(b => b.id !== id));
-        setMessage('Lançamento removido com sucesso.');
-        console.log("Exclusão concluída com sucesso no Supabase.");
+        setMessage('Lançamento excluído com sucesso.');
+        
       } catch (err: any) {
-        console.error("Erro crítico na exclusão:", err);
-        setMessage(`Erro ao excluir: ${err.message}`);
+        console.error("Erro ao deletar:", err);
+        setMessage(`Falha na exclusão: ${err.message}`);
       } finally {
         setTimeout(() => setMessage(null), 3000);
       }
@@ -156,35 +131,21 @@ const App: React.FC = () => {
         observacoes: data.observacoes
       };
 
-      if (hasSubcategoryCol) {
-        payload.subcategoria = data.subcategoria;
-      }
+      if (hasSubcategoryCol) payload.subcategoria = data.subcategoria;
 
       if (boletoToEdit) {
-        const { error } = await supabase
-          .from('boletos')
-          .update(payload)
-          .eq('id', boletoToEdit.id);
-
+        const { error } = await supabase.from('boletos').update(payload).eq('id', boletoToEdit.id);
         if (error) throw error;
         setBoletos(prev => prev.map(b => b.id === boletoToEdit.id ? { ...data, id: b.id } as any : b));
         setMessage(`Registro atualizado.`);
       } else {
         payload.user_id = session.user.id;
-        const { data: savedData, error } = await supabase
-          .from('boletos')
-          .insert([payload])
-          .select()
-          .single();
-
+        const { data: savedData, error } = await supabase.from('boletos').insert([payload]).select().single();
         if (error) throw error;
-        if (savedData) {
-          setBoletos(prev => [...prev, savedData as any]);
-          setMessage(`Lançamento registrado.`);
-        }
+        if (savedData) setBoletos(prev => [...prev, savedData as any]);
+        setMessage(`Lançamento registrado.`);
       }
     } catch (err: any) {
-      console.error("Erro ao salvar:", err);
       setMessage(`Erro ao salvar: ${err.message}`);
     }
     setBoletoToEdit(null);
@@ -192,11 +153,7 @@ const App: React.FC = () => {
   };
 
   const markAsPaid = async (id: string) => {
-    const { error } = await supabase
-      .from('boletos')
-      .update({ status: 'PAGO', data_pagamento: REFERENCE_DATE })
-      .eq('id', id);
-
+    const { error } = await supabase.from('boletos').update({ status: 'PAGO', data_pagamento: REFERENCE_DATE }).eq('id', id);
     if (error) setMessage(`Erro: ${error.message}`);
     else {
       setBoletos(prev => prev.map(b => b.id === id ? { ...b, status: 'PAGO', data_pagamento: REFERENCE_DATE } : b));
@@ -207,20 +164,12 @@ const App: React.FC = () => {
 
   const addCategory = async (name: string) => {
     const { error } = await supabase.from('categories').insert([{ user_id: session.user.id, name }]);
-    if (!error) {
-      setCategories(prev => [...prev, name]);
-      setMessage("Categoria salva.");
-    }
-    setTimeout(() => setMessage(null), 3000);
+    if (!error) setCategories(prev => [...prev, name]);
   };
 
   const addSubCategory = async (name: string) => {
     const { error } = await supabase.from('subcategories').insert([{ user_id: session.user.id, name, category_name: activeCategoryForSub }]);
-    if (!error) {
-      setSubcategories(prev => ({ ...prev, [activeCategoryForSub!]: [...(prev[activeCategoryForSub!] || []), name] }));
-      setMessage("Subcategoria salva.");
-    }
-    setTimeout(() => setMessage(null), 3000);
+    if (!error) setSubcategories(prev => ({ ...prev, [activeCategoryForSub!]: [...(prev[activeCategoryForSub!] || []), name] }));
   };
 
   const filteredBoletos = boletos.filter(b => {
@@ -276,18 +225,6 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto p-4 md:p-8">
-        {hasSubcategoryCol === false && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-sm flex flex-col md:flex-row justify-between items-center gap-4 animate-pulse">
-            <div>
-              <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">⚠️ Atualização de Banco Necessária</p>
-              <p className="text-[11px] text-amber-700 font-medium">A coluna 'subcategoria' não foi detectada. O sistema funcionará em modo simplificado.</p>
-            </div>
-            <code className="bg-white p-2 text-[9px] border border-amber-100 rounded text-slate-600 select-all">
-              ALTER TABLE boletos ADD COLUMN subcategoria text;
-            </code>
-          </div>
-        )}
-
         {message && (
           <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-sm shadow-2xl text-[10px] font-bold uppercase tracking-widest border border-slate-700">
             {message}
@@ -316,10 +253,6 @@ const App: React.FC = () => {
         <div className="flex gap-2 mb-6">
           <button onClick={() => setShowReport(false)} className={`px-4 py-2 text-[9px] font-bold uppercase tracking-widest border rounded-sm transition-all ${!showReport ? 'bg-slate-900 text-white' : 'bg-white text-slate-400'}`}>Lista</button>
           <button onClick={() => setShowReport(true)} className={`px-4 py-2 text-[9px] font-bold uppercase tracking-widest border rounded-sm transition-all ${showReport ? 'bg-slate-900 text-white' : 'bg-white text-slate-400'}`}>Insights</button>
-          
-          <button onClick={() => fetchUserData(session.user.id, true)} className="ml-auto p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Testar Conexão">
-            <svg className={`w-4 h-4 ${dbStatus === 'checking' ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          </button>
         </div>
 
         {showReport ? (
@@ -327,7 +260,7 @@ const App: React.FC = () => {
         ) : (
           <div className="bg-white border border-slate-200 rounded-sm shadow-sm overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-center">
-               <input type="text" placeholder="Filtrar lançamentos..." className="text-xs bg-white border border-slate-200 px-4 py-2 rounded-sm w-full md:w-64 outline-none focus:border-blue-400" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+               <input type="text" placeholder="Filtrar por título ou categoria..." className="text-xs bg-white border border-slate-200 px-4 py-2 rounded-sm w-full md:w-64 outline-none focus:border-blue-400" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                <div className="flex gap-2">
                   <input type="date" className="text-[10px] bg-white border border-slate-200 px-2 py-1.5 rounded-sm" value={dateStart} onChange={e => setDateStart(e.target.value)} />
                   <input type="date" className="text-[10px] bg-white border border-slate-200 px-2 py-1.5 rounded-sm" value={dateEnd} onChange={e => setDateEnd(e.target.value)} />
