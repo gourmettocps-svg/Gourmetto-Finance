@@ -39,7 +39,7 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
         titulo: initialData.titulo,
         categoria: initialData.categoria,
         subcategoria: initialData.subcategoria || '',
-        valor: initialData.valor.toString(),
+        valor: initialData.valor.toFixed(2), // Garante 2 casas decimais ao carregar para edição
         data_vencimento: initialData.data_vencimento,
         data_pagamento: initialData.data_pagamento || '',
         observacoes: initialData.observacoes
@@ -73,6 +73,13 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
       observacoes: formData.observacoes
     });
     onClose();
+  };
+
+  const handleBlurValor = () => {
+    const val = parseFloat(formData.valor);
+    if (!isNaN(val)) {
+      setFormData({ ...formData, valor: val.toFixed(2) });
+    }
   };
 
   const currentSubcats = subcategories[formData.categoria] || [];
@@ -153,6 +160,7 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
                 className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-900 font-black transition-all"
                 value={formData.valor}
                 onChange={e => setFormData({...formData, valor: e.target.value})}
+                onBlur={handleBlurValor}
               />
             </div>
             <div className="space-y-1">

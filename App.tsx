@@ -84,7 +84,7 @@ const App: React.FC = () => {
         }
       } catch (e) { console.error("Falha silenciosa em categorias"); }
 
-      // 3. Fetch Subcategories (Independente - Aqui é onde o erro do usuário ocorria)
+      // 3. Fetch Subcategories (Independente)
       try {
         const { data: subCatData, error: scError } = await supabase
           .from('subcategories')
@@ -93,9 +93,6 @@ const App: React.FC = () => {
 
         if (scError) {
             console.warn("Aviso: Tabela 'subcategories' ausente no cache. Execute o SQL no Supabase.");
-            if (scError.message.includes('subcategories')) {
-               setMessage("Aviso: Tabela 'subcategories' não detectada. Execute o SQL no painel do Supabase.");
-            }
         } else if (subCatData) {
           const map: Record<string, string[]> = {};
           subCatData.forEach(sc => {
@@ -159,13 +156,30 @@ const App: React.FC = () => {
   };
 
   const deleteBoleto = async (id: string) => {
+    console.debug("Iniciando processo de exclusão para ID:", id);
+    if (!id) {
+      console.error("ID inválido para exclusão.");
+      return;
+    }
+
     if (window.confirm('Excluir este lançamento permanentemente?')) {
-      const { error } = await supabase.from('boletos').delete().eq('id', id);
-      if (error) {
-        setMessage(`Erro ao excluir: ${error.message}`);
-      } else {
-        setBoletos(prev => prev.filter(b => b.id !== id));
-        setMessage('Lançamento removido.');
+      try {
+        const { error, status } = await supabase
+          .from('boletos')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.error("Erro Supabase ao excluir:", error);
+          setMessage(`Erro ao excluir: ${error.message}`);
+        } else {
+          console.debug("Exclusão bem-sucedida no banco. Status:", status);
+          setBoletos(prev => prev.filter(b => b.id !== id));
+          setMessage('Lançamento removido com sucesso.');
+        }
+      } catch (err: any) {
+        console.error("Erro inesperado na exclusão:", err);
+        setMessage(`Erro inesperado: ${err.message}`);
       }
       setTimeout(() => setMessage(null), 3000);
     }
@@ -206,7 +220,7 @@ const App: React.FC = () => {
         }
         }
     } catch (err: any) {
-        setMessage(`Erro ao salvar: ${err.message}. Verifique se a tabela 'boletos' existe.`);
+        setMessage(`Erro ao salvar: ${err.message}. Verifique a tabela 'boletos'.`);
     }
     setBoletoToEdit(null);
     setTimeout(() => setMessage(null), 3000);
@@ -219,7 +233,7 @@ const App: React.FC = () => {
       .insert([{ user_id: session.user.id, name }]);
 
     if (error) {
-      setMessage(`Erro: ${error.message}. Tabela 'categories' existe?`);
+      setMessage(`Erro: ${error.message}`);
     } else {
       setCategories(prev => [...prev, name]);
       setMessage(`Categoria "${name}" adicionada.`);
@@ -237,13 +251,13 @@ const App: React.FC = () => {
       .insert([{ user_id: session.user.id, name, category_name: activeCategoryForSub }]);
 
     if (error) {
-      setMessage(`Erro: ${error.message}. Tabela 'subcategories' existe?`);
+      setMessage(`Erro: ${error.message}`);
     } else {
       setSubcategories(prev => ({
         ...prev,
         [activeCategoryForSub]: [...(prev[activeCategoryForSub] || []), name]
       }));
-      setMessage(`Subcategoria "${name}" vinculada.`);
+      setMessage(`Subcategoria vinculada.`);
     }
     setTimeout(() => setMessage(null), 3000);
   };
@@ -317,7 +331,7 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-none uppercase">GOURMETTO <span className="text-blue-600">FINANCE</span></h1>
               <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mt-1 flex items-center gap-2">
-                Cloud v1.0.8
+                Cloud v1.0.9
                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-emerald-500' : dbStatus === 'offline' ? 'bg-rose-500' : 'bg-amber-500 animate-pulse'}`}></span>
               </p>
             </div>
