@@ -19,17 +19,24 @@ const BoletoCard: React.FC<BoletoCardProps> = ({ boleto, onMarkPaid, onDelete, o
 
       <div className="flex flex-col flex-grow md:max-w-[30%]">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-extrabold text-slate-800 tracking-tight leading-none uppercase truncate">{boleto.titulo}</h3>
+          <h3 className="text-lg font-bold text-slate-800 tracking-tight uppercase truncate">{boleto.titulo}</h3>
           {isOverdue && <span className="text-[8px] bg-rose-600 text-white px-2 py-0.5 rounded-sm font-bold uppercase tracking-tighter shrink-0">🚨 ATRASADO</span>}
         </div>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100 tracking-wider">{boleto.categoria}</span>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-[9px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100 tracking-wider">
+            {boleto.categoria}
+          </span>
+          {boleto.subcategoria && (
+            <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-sm border border-emerald-100 tracking-wider">
+               {boleto.subcategoria}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="my-4 md:my-0 md:px-10 md:min-w-[180px] text-left md:text-center border-l-0 md:border-l border-slate-100">
         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-1">Montante</p>
-        <p className={`text-xl font-black ${isPaid ? 'text-slate-400' : 'text-slate-900'} tracking-tighter`}>
+        <p className={`text-xl font-black ${isPaid ? 'text-slate-400' : 'text-slate-900'} tracking-tight`}>
           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(boleto.valor)}
         </p>
       </div>
@@ -50,7 +57,7 @@ const BoletoCard: React.FC<BoletoCardProps> = ({ boleto, onMarkPaid, onDelete, o
 
       <div className="mb-4 md:mb-0 md:px-10 border-l-0 md:border-l border-slate-100 min-w-[140px]">
         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.15em] mb-1">Vencimento</p>
-        <p className={`text-sm font-black ${isOverdue ? 'text-rose-600' : 'text-slate-600'} tracking-tight`}>
+        <p className={`text-sm font-black ${isOverdue ? 'text-rose-600' : 'text-slate-600'} tracking-wide`}>
           {new Date(boleto.data_vencimento).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
         </p>
       </div>
@@ -60,8 +67,8 @@ const BoletoCard: React.FC<BoletoCardProps> = ({ boleto, onMarkPaid, onDelete, o
           <button onClick={onMarkPaid} className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-sm text-[9px] font-black uppercase tracking-[0.1em] shadow-md transition-all active:scale-95">QUITAR</button>
         )}
         <div className="flex items-center bg-slate-100 rounded-sm p-0.5 ml-auto">
-          <button onClick={onEdit} className="text-slate-400 hover:text-blue-600 p-2 transition-all"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-          <button onClick={onDelete} className="text-slate-400 hover:text-rose-600 p-2 transition-all"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+          <button onClick={onEdit} className="text-slate-400 hover:text-blue-600 p-2 transition-all"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+          <button onClick={onDelete} className="text-slate-400 hover:text-rose-600 p-2 transition-all"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
         </div>
       </div>
     </div>

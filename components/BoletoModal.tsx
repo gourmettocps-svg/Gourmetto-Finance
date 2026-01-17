@@ -7,14 +7,26 @@ interface BoletoModalProps {
   onClose: () => void;
   onSave: (boleto: Omit<Boleto, 'id'>) => void;
   categories: string[];
+  subcategories: Record<string, string[]>;
   onOpenCategoryModal: () => void;
+  onOpenSubCategoryModal: (category: string) => void;
   initialData?: Boleto | null;
 }
 
-const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, categories, onOpenCategoryModal, initialData }) => {
+const BoletoModal: React.FC<BoletoModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  categories, 
+  subcategories,
+  onOpenCategoryModal, 
+  onOpenSubCategoryModal,
+  initialData 
+}) => {
   const [formData, setFormData] = useState({
     titulo: '',
     categoria: '',
+    subcategoria: '',
     valor: '',
     data_vencimento: '',
     data_pagamento: '',
@@ -26,15 +38,18 @@ const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, cate
       setFormData({
         titulo: initialData.titulo,
         categoria: initialData.categoria,
+        subcategoria: initialData.subcategoria || '',
         valor: initialData.valor.toString(),
         data_vencimento: initialData.data_vencimento,
         data_pagamento: initialData.data_pagamento || '',
         observacoes: initialData.observacoes
       });
     } else {
+      const firstCat = categories[0] || '';
       setFormData({
         titulo: '',
-        categoria: categories[0] || '',
+        categoria: firstCat,
+        subcategoria: '',
         valor: '',
         data_vencimento: '',
         data_pagamento: '',
@@ -50,6 +65,7 @@ const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, cate
     onSave({
       titulo: formData.titulo,
       categoria: formData.categoria || categories[0],
+      subcategoria: formData.subcategoria,
       valor: parseFloat(formData.valor),
       data_vencimento: formData.data_vencimento,
       data_pagamento: formData.data_pagamento || undefined,
@@ -58,6 +74,8 @@ const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, cate
     });
     onClose();
   };
+
+  const currentSubcats = subcategories[formData.categoria] || [];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
@@ -84,15 +102,47 @@ const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, cate
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Categoria</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Categoria</label>
+                <button 
+                  type="button"
+                  onClick={onOpenCategoryModal}
+                  className="text-[8px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest bg-blue-50 px-1.5 py-0.5 rounded-sm"
+                >
+                  + Categ
+                </button>
+              </div>
               <select 
                 className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 font-medium transition-all"
                 value={formData.categoria}
-                onChange={e => setFormData({...formData, categoria: e.target.value})}
+                onChange={e => setFormData({...formData, categoria: e.target.value, subcategoria: ''})}
               >
                 {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
             </div>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subcategoria</label>
+                <button 
+                  type="button"
+                  onClick={() => onOpenSubCategoryModal(formData.categoria)}
+                  className="text-[8px] font-bold text-emerald-600 hover:text-emerald-800 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded-sm"
+                >
+                  + Sub
+                </button>
+              </div>
+              <select 
+                className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-blue-400 outline-none text-slate-700 font-medium transition-all"
+                value={formData.subcategoria}
+                onChange={e => setFormData({...formData, subcategoria: e.target.value})}
+              >
+                <option value="">Nenhuma</option>
+                {currentSubcats.map(sc => <option key={sc} value={sc}>{sc}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Valor (R$)</label>
               <input 
@@ -104,9 +154,6 @@ const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, cate
                 onChange={e => setFormData({...formData, valor: e.target.value})}
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Vencimento</label>
               <input 
@@ -117,8 +164,11 @@ const BoletoModal: React.FC<BoletoModalProps> = ({ isOpen, onClose, onSave, cate
                 onChange={e => setFormData({...formData, data_vencimento: e.target.value})}
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data Pagamento</label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-1 col-span-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data Pagamento (Deixe vazio se pendente)</label>
               <input 
                 type="date"
                 className="w-full px-4 py-2 rounded-sm bg-slate-100 border border-slate-300 focus:border-emerald-400 outline-none text-emerald-700 font-bold"

@@ -6,8 +6,9 @@ export interface Boleto {
   user_id?: string;
   titulo: string;
   categoria: string;
+  subcategoria?: string;
   valor: number;
-  data_vencimento: string; // Snake case para bater com o banco
+  data_vencimento: string; 
   data_pagamento?: string;
   status: PaymentStatus;
   observacoes: string;

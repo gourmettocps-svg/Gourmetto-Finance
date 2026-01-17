@@ -9,23 +9,29 @@ import CategoryModal from './components/CategoryModal';
 import Auth from './components/Auth';
 import { REFERENCE_DATE } from './constants';
 
-const DEFAULT_CATEGORIES = ['Habitação', 'Lazer', 'Saúde', 'Educação', 'Transporte', 'Tecnologia', 'Outros'];
+const DEFAULT_CATEGORIES = ['Habitação', 'Lazer', 'Saúde', 'Educação', 'Transporte', 'Tecnologia', 'Utilidades', 'Outros'];
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dbStatus, setDbStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [subcategories, setSubcategories] = useState<Record<string, string[]>>({});
+  // Fix: Added missing state variable for boletos and its setter.
   const [boletos, setBoletos] = useState<Boleto[]>([]);
 
+  // Filtros
   const [searchTerm, setSearchTerm] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'TODOS' | PaymentStatus>('TODOS');
+  const [statusFilter, setStatusFilter] = useState<'TODOS' | 'PAGO' | 'PENDENTE'>('TODOS');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
+
   const [message, setMessage] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isSubCategoryModalOpen, setIsSubCategoryModalOpen] = useState(false);
+  const [activeCategoryForSub, setActiveCategoryForSub] = useState<string | null>(null);
   const [boletoToEdit, setBoletoToEdit] = useState<Boleto | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -60,15 +66,32 @@ const App: React.FC = () => {
       if (bError) throw bError;
       if (boletosData) setBoletos(boletosData as any);
 
+      // Categorias
       const { data: catData, error: cError } = await supabase
         .from('categories')
         .select('name')
         .eq('user_id', userId);
       
       if (cError) throw cError;
-      if (catData && catData.length > 0) {
+      if (catData) {
         const customNames = catData.map(c => c.name);
         setCategories([...DEFAULT_CATEGORIES, ...customNames]);
+      }
+
+      // Subcategorias
+      const { data: subCatData, error: scError } = await supabase
+        .from('subcategories')
+        .select('name, category_name')
+        .eq('user_id', userId);
+
+      if (scError) throw scError;
+      if (subCatData) {
+        const map: Record<string, string[]> = {};
+        subCatData.forEach(sc => {
+          if (!map[sc.category_name]) map[sc.category_name] = [];
+          map[sc.category_name].push(sc.name);
+        });
+        setSubcategories(map);
       }
       
       setDbStatus('online');
@@ -142,6 +165,7 @@ const App: React.FC = () => {
         .update({
           titulo: data.titulo,
           categoria: data.categoria,
+          subcategoria: data.subcategoria,
           valor: data.valor,
           data_vencimento: data.data_vencimento,
           data_pagamento: data.data_pagamento,
@@ -153,7 +177,7 @@ const App: React.FC = () => {
       if (error) {
         setMessage(`Erro ao atualizar: ${error.message}`);
       } else {
-        setBoletos(prev => prev.map(b => b.id === boletoToEdit.id ? { ...data, id: b.id } : b));
+        setBoletos(prev => prev.map(b => b.id === boletoToEdit.id ? { ...data, id: b.id } as any : b));
         setMessage(`Registro atualizado.`);
       }
     } else {
@@ -190,16 +214,45 @@ const App: React.FC = () => {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const addSubCategory = async (name: string) => {
+    if (!activeCategoryForSub) return;
+    const existing = subcategories[activeCategoryForSub] || [];
+    if (existing.includes(name)) return;
+
+    const { error } = await supabase
+      .from('subcategories')
+      .insert([{ user_id: session.user.id, name, category_name: activeCategoryForSub }]);
+
+    if (error) {
+      setMessage(`Erro ao criar subcategoria: ${error.message}`);
+    } else {
+      setSubcategories(prev => ({
+        ...prev,
+        [activeCategoryForSub]: [...(prev[activeCategoryForSub] || []), name]
+      }));
+      setMessage(`Subcategoria "${name}" vinculada a ${activeCategoryForSub}.`);
+    }
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('TODOS');
+    setDateStart('');
+    setDateEnd('');
+  };
+
   const filteredBoletos = boletos.filter(b => {
     const matchesSearch = b.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       b.categoria.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.observacoes.toLowerCase().includes(searchTerm.toLowerCase());
+      (b.subcategoria?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     
-    const matchesStartDate = startDate ? new Date(b.data_vencimento) >= new Date(startDate) : true;
-    const matchesEndDate = endDate ? new Date(b.data_vencimento) <= new Date(endDate) : true;
-    const matchesStatus = statusFilter === 'TODOS' ? true : b.status === statusFilter;
+    const matchesStatus = statusFilter === 'TODOS' || b.status === statusFilter;
+    
+    const matchesDateStart = !dateStart || b.data_vencimento >= dateStart;
+    const matchesDateEnd = !dateEnd || b.data_vencimento <= dateEnd;
 
-    return matchesSearch && matchesStartDate && matchesEndDate && matchesStatus;
+    return matchesSearch && matchesStatus && matchesDateStart && matchesDateEnd;
   });
 
   const reportData = calculateReport(boletos);
@@ -224,14 +277,24 @@ const App: React.FC = () => {
         onClose={() => { setIsModalOpen(false); setBoletoToEdit(null); }} 
         onSave={handleSaveBoleto}
         categories={categories}
+        subcategories={subcategories}
         onOpenCategoryModal={() => setIsCategoryModalOpen(true)}
+        onOpenSubCategoryModal={(cat) => { setActiveCategoryForSub(cat); setIsSubCategoryModalOpen(true); }}
         initialData={boletoToEdit as any}
       />
 
       <CategoryModal 
         isOpen={isCategoryModalOpen}
-        onClose={() => { setIsCategoryModalOpen(false); }}
+        onClose={() => setIsCategoryModalOpen(false)}
         onSave={addCategory}
+        title="Nova Categoria"
+      />
+
+      <CategoryModal 
+        isOpen={isSubCategoryModalOpen}
+        onClose={() => setIsSubCategoryModalOpen(false)}
+        onSave={addSubCategory}
+        title={`Nova Subcategoria para ${activeCategoryForSub}`}
       />
 
       <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-[60] shadow-sm">
@@ -339,7 +402,7 @@ const App: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                   <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Painel de Lançamentos Cloud</h2>
                   
-                  <div className="relative w-full md:w-96">
+                  <div className="relative w-full md:w-80">
                     <input 
                       type="text"
                       placeholder="Busca em tempo real..."
@@ -353,47 +416,45 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-end gap-4 p-4 bg-white border border-slate-200 rounded-sm shadow-sm">
-                  <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">De (Vencimento)</label>
+                <div className="flex flex-wrap items-end gap-4 p-4 bg-white border border-slate-100 rounded-sm">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">De (Vencimento)</label>
                     <input 
                       type="date"
-                      className="w-full px-3 py-1.5 border border-slate-200 rounded-sm text-[11px] outline-none focus:border-blue-300"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 outline-none focus:border-blue-300"
+                      value={dateStart}
+                      onChange={(e) => setDateStart(e.target.value)}
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Até (Vencimento)</label>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Até (Vencimento)</label>
                     <input 
                       type="date"
-                      className="w-full px-3 py-1.5 border border-slate-200 rounded-sm text-[11px] outline-none focus:border-blue-300"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-sm px-2 py-1.5 outline-none focus:border-blue-300"
+                      value={dateEnd}
+                      onChange={(e) => setDateEnd(e.target.value)}
                     />
                   </div>
-                  
-                  <div className="flex flex-col gap-1.5 flex-1 min-w-[140px]">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Status do Pagamento</label>
-                    <select 
-                      className="w-full px-3 py-[7px] border border-slate-200 rounded-sm text-[11px] outline-none focus:border-blue-300 bg-white font-medium"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value as any)}
-                    >
-                      <option value="TODOS">TODOS OS STATUS</option>
-                      <option value="PENDENTE">SOMENTE PENDENTES</option>
-                      <option value="PAGO">SOMENTE PAGOS</option>
-                    </select>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Status do Fluxo</label>
+                    <div className="flex border border-slate-200 rounded-sm overflow-hidden h-[30px]">
+                      {(['TODOS', 'PENDENTE', 'PAGO'] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setStatusFilter(s)}
+                          className={`px-3 text-[9px] font-bold uppercase tracking-tighter transition-all ${statusFilter === s ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-
-                  {(startDate || endDate || statusFilter !== 'TODOS') && (
-                    <button 
-                      onClick={() => { setStartDate(''); setEndDate(''); setStatusFilter('TODOS'); }}
-                      className="px-4 py-1.5 text-[9px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-100 rounded-sm uppercase transition-all h-[34px]"
-                    >
-                      Limpar
-                    </button>
-                  )}
+                  <button 
+                    onClick={resetFilters}
+                    className="h-[30px] px-4 text-[9px] font-bold text-slate-400 uppercase tracking-widest hover:text-rose-600 transition-colors border border-dashed border-slate-200 rounded-sm"
+                  >
+                    Limpar Filtros
+                  </button>
                 </div>
               </div>
 
@@ -412,40 +473,20 @@ const App: React.FC = () => {
                     <div className="text-slate-200 mb-4 flex justify-center">
                       <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
-                    <h3 className="text-slate-400 font-bold text-sm uppercase tracking-tight">Nenhum registro no banco</h3>
-                    <p className="text-slate-300 text-[10px] mt-2 uppercase tracking-[0.2em]">Todos os dados são persistidos via Supabase.</p>
+                    <h3 className="text-slate-400 font-bold text-sm uppercase tracking-tight">Nenhum registro encontrado</h3>
+                    <p className="text-slate-300 text-[10px] mt-2 uppercase tracking-[0.2em]">Tente ajustar os filtros ou a busca.</p>
                   </div>
                 )}
               </div>
             </div>
           )}
         </div>
-
-        <div className="w-full flex justify-center pt-8 border-t border-slate-200">
-           <div className="bg-white rounded-sm border border-slate-200 shadow-sm p-6 w-full max-w-lg">
-              <div className="flex flex-col gap-4">
-                <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
-                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.1em]">Configurações de Dados</h3>
-                   <span className="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-sm">{categories.length} Categorias</span>
-                </div>
-                <button 
-                  onClick={() => setIsCategoryModalOpen(true)}
-                  className="w-full bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-4 rounded-sm text-[10px] font-bold uppercase transition-all border border-blue-100 shadow-sm flex items-center justify-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Adicionar Nova Categoria
-                </button>
-              </div>
-            </div>
-        </div>
         
         <div ref={scrollRef}></div>
       </main>
 
       <footer className="text-center py-12 border-t border-slate-200 mt-10">
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.6em]">GOURMETTO FINANCE • Versão Cloud 1.0.4</p>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.6em]">GOURMETTO FINANCE • Versão Cloud 1.0.6</p>
       </footer>
 
       <style>{`
