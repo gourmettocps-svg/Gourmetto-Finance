@@ -6,6 +6,7 @@ interface BoletoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (boleto: Omit<Boleto, 'id'>) => void;
+  onDelete?: (id: string) => void;
   categories: string[];
   subcategories: Record<string, string[]>;
   onOpenCategoryModal: () => void;
@@ -17,6 +18,7 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
   isOpen, 
   onClose, 
   onSave, 
+  onDelete,
   categories, 
   subcategories,
   onOpenCategoryModal, 
@@ -39,7 +41,7 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
         titulo: initialData.titulo,
         categoria: initialData.categoria,
         subcategoria: initialData.subcategoria || '',
-        valor: initialData.valor.toFixed(2), // Garante 2 casas decimais ao carregar para edição
+        valor: initialData.valor.toFixed(2),
         data_vencimento: initialData.data_vencimento,
         data_pagamento: initialData.data_pagamento || '',
         observacoes: initialData.observacoes
@@ -79,6 +81,13 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
     const val = parseFloat(formData.valor);
     if (!isNaN(val)) {
       setFormData({ ...formData, valor: val.toFixed(2) });
+    }
+  };
+
+  const handleDeleteAction = () => {
+    if (initialData && onDelete) {
+      onDelete(initialData.id);
+      onClose();
     }
   };
 
@@ -195,9 +204,18 @@ const BoletoModal: React.FC<BoletoModalProps> = ({
             />
           </div>
 
-          <div className="pt-4 flex gap-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-3 rounded-sm border border-slate-300 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancelar</button>
-            <button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-sm font-bold text-[10px] uppercase tracking-widest shadow-md active:scale-[0.98] transition-all">Efetivar Lançamento</button>
+          <div className="pt-4 flex flex-wrap gap-2">
+            {initialData && (
+              <button 
+                type="button" 
+                onClick={handleDeleteAction} 
+                className="flex-1 min-w-[100px] px-4 py-3 rounded-sm border border-rose-200 text-rose-600 font-bold text-[10px] uppercase tracking-widest hover:bg-rose-50 transition-all"
+              >
+                Excluir Lançamento
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="flex-1 min-w-[100px] px-4 py-3 rounded-sm border border-slate-300 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancelar</button>
+            <button type="submit" className="flex-[2] min-w-[200px] bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-sm font-bold text-[10px] uppercase tracking-widest shadow-md active:scale-[0.98] transition-all">Efetivar Lançamento</button>
           </div>
         </form>
       </div>

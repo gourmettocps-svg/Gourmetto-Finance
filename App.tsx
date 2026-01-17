@@ -33,7 +33,6 @@ const App: React.FC = () => {
   const [isSubCategoryModalOpen, setIsSubCategoryModalOpen] = useState(false);
   const [activeCategoryForSub, setActiveCategoryForSub] = useState<string | null>(null);
   const [boletoToEdit, setBoletoToEdit] = useState<Boleto | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -56,10 +55,10 @@ const App: React.FC = () => {
 
   const fetchUserData = async (userId: string, isManualTest = false) => {
     setDbStatus('checking');
-    if (isManualTest) setMessage("Iniciando diagnóstico de infraestrutura...");
+    if (isManualTest) setMessage("Sincronizando infraestrutura...");
     
     try {
-      // Teste de Schema: Verificar se a coluna subcategoria existe
+      // Teste de Schema
       const { data: colCheck, error: colError } = await supabase
         .from('boletos')
         .select('subcategoria')
@@ -104,7 +103,6 @@ const App: React.FC = () => {
       }
 
       setDbStatus('online');
-      if (isManualTest) setMessage("Conexão OK. Schema sincronizado.");
     } catch (err: any) {
       console.error("Erro diagnóstico:", err.message);
       setDbStatus('error');
@@ -115,9 +113,39 @@ const App: React.FC = () => {
     }
   };
 
+  const deleteBoleto = async (id: string) => {
+    if (!id) {
+      console.error("Tentativa de exclusão sem ID");
+      return;
+    }
+    
+    if (window.confirm('Excluir este lançamento permanentemente?')) {
+      try {
+        console.log("Iniciando exclusão do ID:", id);
+        const { error } = await supabase
+          .from('boletos')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          throw error;
+        }
+
+        // Atualização imediata do estado local
+        setBoletos(prev => prev.filter(b => b.id !== id));
+        setMessage('Lançamento removido com sucesso.');
+        console.log("Exclusão concluída com sucesso no Supabase.");
+      } catch (err: any) {
+        console.error("Erro crítico na exclusão:", err);
+        setMessage(`Erro ao excluir: ${err.message}`);
+      } finally {
+        setTimeout(() => setMessage(null), 3000);
+      }
+    }
+  };
+
   const handleSaveBoleto = async (data: Omit<Boleto, 'id'>) => {
     try {
-      // Prepara payload dinâmico baseado no que o banco suporta
       const payload: any = {
         titulo: data.titulo,
         categoria: data.categoria,
@@ -128,7 +156,6 @@ const App: React.FC = () => {
         observacoes: data.observacoes
       };
 
-      // Só inclui subcategoria se a coluna existir no banco
       if (hasSubcategoryCol) {
         payload.subcategoria = data.subcategoria;
       }
@@ -158,7 +185,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Erro ao salvar:", err);
-      setMessage(`Erro ao salvar: ${err.message}. Certifique-se de que a coluna 'subcategoria' existe no seu banco.`);
+      setMessage(`Erro ao salvar: ${err.message}`);
     }
     setBoletoToEdit(null);
     setTimeout(() => setMessage(null), 3000);
@@ -176,18 +203,6 @@ const App: React.FC = () => {
       setMessage(`Baixa efetuada.`);
     }
     setTimeout(() => setMessage(null), 3000);
-  };
-
-  const deleteBoleto = async (id: string) => {
-    if (window.confirm('Excluir permanentemente?')) {
-      const { error } = await supabase.from('boletos').delete().eq('id', id);
-      if (error) setMessage(`Erro: ${error.message}`);
-      else {
-        setBoletos(prev => prev.filter(b => b.id !== id));
-        setMessage('Removido.');
-      }
-      setTimeout(() => setMessage(null), 3000);
-    }
   };
 
   const addCategory = async (name: string) => {
@@ -233,8 +248,12 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 pb-12 font-sans selection:bg-blue-100">
       <BoletoModal 
-        isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setBoletoToEdit(null); }} onSave={handleSaveBoleto}
-        categories={categories} subcategories={subcategories}
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); setBoletoToEdit(null); }} 
+        onSave={handleSaveBoleto}
+        onDelete={deleteBoleto}
+        categories={categories} 
+        subcategories={subcategories}
         onOpenCategoryModal={() => setIsCategoryModalOpen(true)}
         onOpenSubCategoryModal={(cat) => { setActiveCategoryForSub(cat); setIsSubCategoryModalOpen(true); }}
         initialData={boletoToEdit as any}
@@ -316,7 +335,13 @@ const App: React.FC = () => {
             </div>
             <div className="divide-y divide-slate-100">
               {filteredBoletos.map(b => (
-                <BoletoCard key={b.id} boleto={b as any} onMarkPaid={() => markAsPaid(b.id)} onDelete={() => deleteBoleto(b.id)} onEdit={() => { setBoletoToEdit(b as any); setIsModalOpen(true); }} />
+                <BoletoCard 
+                  key={b.id} 
+                  boleto={b as any} 
+                  onMarkPaid={() => markAsPaid(b.id)} 
+                  onDelete={() => deleteBoleto(b.id)} 
+                  onEdit={() => { setBoletoToEdit(b as any); setIsModalOpen(true); }} 
+                />
               ))}
               {filteredBoletos.length === 0 && <div className="py-20 text-center text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">Nenhum registro encontrado</div>}
             </div>
